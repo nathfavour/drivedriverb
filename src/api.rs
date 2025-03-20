@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use crate::config::Config;
 use crate::scanner;
-use crate::storage;
 use std::thread;
 use std::time::Duration;
 
