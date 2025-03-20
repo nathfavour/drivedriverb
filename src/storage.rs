@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use serde_derive::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::io;
 use crate::ai_integration::AIAnalysisResult;
 use crate::scanner::ScanResult;
+use serde_json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileMetadata {

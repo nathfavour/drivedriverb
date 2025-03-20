@@ -1,7 +1,8 @@
 use std::path::Path;
-use serde::{Serialize, Deserialize};
+use serde_derive::{Serialize, Deserialize};
 use reqwest::blocking::Client;
 use std::io::Read;
+use serde_json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AIAnalysisResult {

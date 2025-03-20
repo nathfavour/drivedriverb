@@ -5,9 +5,9 @@ mod ai_integration;
 mod api;
 mod config;
 
-use std::path::Path;
 use std::sync::{Arc, Mutex};
-use config::Config;
+use crate::config::Config;
+use dirs;
 
 fn main() {
     println!("DriveDriver starting up...");
