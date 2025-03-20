@@ -14,11 +14,14 @@ pub struct FileMetadata {
     pub file_name: String,
     pub extension: String,
     pub size: u64,
+    #[serde(with = "chrono::serde::ts_seconds")]
     pub created: DateTime<Utc>,
+    #[serde(with = "chrono::serde::ts_seconds")]
     pub modified: DateTime<Utc>,
     pub category: String,
     pub mime_type: String,
     pub importance_score: u8,
+    #[serde(with = "chrono::serde::ts_seconds")]
     pub last_accessed: DateTime<Utc>,
     pub is_duplicate: bool,
     pub duplicate_of: Option<PathBuf>,
@@ -32,7 +35,7 @@ pub fn save_scan_result(config_dir: &Path, result: &ScanResult) -> io::Result<()
     
     // Save overall statistics
     let stats = serde_json::json!({
-        "timestamp": Utc::now(),
+        "timestamp": Utc::now().timestamp(), // changed: using timestamp (i64)
         "total_files": result.total_files,
         "total_size": result.total_size,
         "file_types": result.file_types,

@@ -17,12 +17,13 @@ fn main() {
     let config = Config::load_or_create(&config_path);
     let config = Arc::new(Mutex::new(config));
     
-    // Start the API server for Flutter frontend
+    // Clone for API server
+    let api_config = config.clone();
     let api_handle = std::thread::spawn(move || {
-        api::start_server(config.clone());
+        api::start_server(api_config);
     });
     
-    // Start initial scan
+    // Start initial scan using the original config clone
     scanner::start_initial_scan(config.clone());
     
     // Block on API server
