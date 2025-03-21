@@ -490,5 +490,7 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
         
         // Run the server; this will block until the system is stopped.
         app.run().await.expect("Failed to run server");
+        // After shutdown, exit process to free terminal
+        std::process::exit(0);
     });
 }
