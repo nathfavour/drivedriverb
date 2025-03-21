@@ -113,9 +113,8 @@ async fn get_metadata(_config: web::Data<Arc<Mutex<Config>>>) -> impl Responder 
             HttpResponse::Ok().json(simplified) // Return as a list
         },
         Err(_) => {
-            HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Failed to load metadata"
-            }))
+            // Return an empty list instead of a map to match frontend expectations
+            HttpResponse::Ok().json(Vec::<serde_json::Value>::new())
         }
     }
 }
