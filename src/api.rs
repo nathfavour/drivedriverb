@@ -91,7 +91,7 @@ async fn initiate_scan(data: web::Json<ScanDriveRequest>, config: web::Data<Arc<
     }))
 }
 
-async fn get_metadata(config: web::Data<Arc<Mutex<Config>>>) -> impl Responder {{
+async fn get_metadata(_config: web::Data<Arc<Mutex<Config>>>) -> impl Responder {
     // Load file metadata
     let config_dir = crate::get_config_dir();
     match storage::load_file_metadata(&config_dir) {
