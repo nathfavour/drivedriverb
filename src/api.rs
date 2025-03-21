@@ -126,11 +126,11 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
     // Use actix_web to run the server
     let config_data = web::Data::new(config);
     
-    // Create runtime for actix
-    let rt = actix_web::rt::Runtime::new().expect("Failed to create Actix runtime");
+    // Create an actix system
+    let system = actix_web::rt::System::new();
     
-    // Use RuntimeService to handle the server
-    rt.block_on(async move {
+    // Run the server in the system
+    system.block_on(async move {
         // Configure CORS to allow access from Flutter app
         let cors = Cors::default()
             .allow_any_origin()

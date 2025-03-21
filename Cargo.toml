@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 actix-cors = "0.7.1"
-actix-web = { version = "4.10.2", features = ["rt-tokio-native-tls"] }
+actix_web = "4.10.2"
 chrono = { version = "0.4.40", features = ["serde"]}
 dirs = "6.0.0"
 reqwest = { version = "0.12.15", features = ["blocking", "json"]}
