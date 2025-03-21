@@ -7,6 +7,7 @@ use crate::scanner;
 use crate::storage;
 use std::thread;
 use std::path::PathBuf;
+use tokio;
 
 // API response types
 #[derive(Serialize)]
@@ -96,9 +97,8 @@ async fn get_metadata(_config: web::Data<Arc<Mutex<Config>>>) -> impl Responder 
     let config_dir = crate::get_config_dir();
     match storage::load_file_metadata(&config_dir) {
         Ok(metadata) => {
-            // Converting to a simplified format for the frontend
+            // Convert metadata to a list format
             let simplified: Vec<serde_json::Value> = metadata.values()
-                .take(1000) // Limit to 1000 entries to avoid overwhelming the frontend
                 .map(|meta| {
                     serde_json::json!({
                         "path": meta.path.to_string_lossy(),
@@ -110,7 +110,7 @@ async fn get_metadata(_config: web::Data<Arc<Mutex<Config>>>) -> impl Responder 
                 })
                 .collect();
             
-            HttpResponse::Ok().json(simplified)
+            HttpResponse::Ok().json(simplified) // Return as a list
         },
         Err(_) => {
             HttpResponse::InternalServerError().json(serde_json::json!({
