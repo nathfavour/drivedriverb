@@ -121,15 +121,26 @@ async fn get_metadata(_config: web::Data<Arc<Mutex<Config>>>) -> impl Responder 
 
 // Add a new endpoint for system status that includes more details
 async fn get_system_status() -> impl Responder {
+    let uptime = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+        
+    let memory_usage = get_memory_usage();
+    let cpu_usage = get_cpu_usage();
+    
+    // Add more detailed statistics
+    let scan_stats = get_scan_statistics();
+    
     let response = serde_json::json!({
         "status": "running",
         "version": env!("CARGO_PKG_VERSION"),
-        "uptime": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
-        "memory_usage": get_memory_usage(),
-        "cpu_usage": get_cpu_usage(),
+        "uptime": uptime,
+        "memory_usage": memory_usage,
+        "cpu_usage": cpu_usage,
+        "scan_stats": scan_stats,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "process_id": std::process::id(),
     });
     
     HttpResponse::Ok().json(response)
@@ -249,6 +260,26 @@ fn get_cpu_usage() -> f32 {
     // This would require platform-specific implementation
     // Returning a placeholder value
     0.0
+}
+
+// Helper function to get scan statistics
+fn get_scan_statistics() -> serde_json::Value {
+    let config_dir = crate::get_config_dir();
+    let stats_path = config_dir.join("data").join("latest_stats.json");
+    
+    if let Ok(content) = std::fs::read_to_string(stats_path) {
+        if let Ok(stats) = serde_json::from_str::<serde_json::Value>(&content) {
+            return stats;
+        }
+    }
+    
+    // Return empty stats if no data available
+    serde_json::json!({
+        "timestamp": 0,
+        "total_files": 0,
+        "total_size": 0,
+        "file_types": {}
+    })
 }
 
 // Add a detailed file listing endpoint with pagination and filtering
@@ -436,8 +467,10 @@ async fn get_file_details(path: web::Path<String>) -> impl Responder {
     }
 }
 
-pub fn start_server(config: Arc<Mutex<Config>>) {
-    println!("Starting API server on http://0.0.0.0:8080");
+pub fn start_server(config: Arc<Mutex<Config>>, port: u16, verbose: bool) {
+    if verbose {
+        println!("Starting API server on http://0.0.0.0:{}", port);
+    }
     
     // Use actix_web to run the server
     let config_data = web::Data::new(config);
@@ -476,10 +509,12 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
                 .route("/config", web::get().to(get_config))
                 .route("/config", web::post().to(update_config))
         })
-        .bind("0.0.0.0:8080")
-        .expect("Failed to bind to port 8080");
+        .bind(format!("0.0.0.0:{}", port))
+        .expect(&format!("Failed to bind to port {}", port));
         
-        println!("API server started successfully");
+        if verbose {
+            println!("API server started successfully on port {}", port);
+        }
         
         // Spawn a task to listen for Ctrl+C and stop the system
         actix_web::rt::spawn(async {
