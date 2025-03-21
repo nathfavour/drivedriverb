@@ -34,7 +34,7 @@ fn run_backend() {
     println!("DriveDriver starting up...");
     
     // Initialize configuration
-    let config_path = get_config_dir().join("config.toml");
+    let config_path = get_config_dir().join("config.json");
     let config = Config::load_or_create(&config_path);
     let config = Arc::new(Mutex::new(config));
     
@@ -105,7 +105,7 @@ fn stop_backend() {
 
 fn get_config_dir() -> PathBuf {
     let home = dirs::home_dir().expect("Could not find home directory");
-    let config_dir = home.join(".drivedriver");
+    let config_dir = home.join(".drivedriverb");
     fs::create_dir_all(&config_dir).expect("Failed to create config directory");
     config_dir
 }

@@ -482,7 +482,14 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
         
         println!("API server started successfully");
         
-        // Run the server
+        // Spawn a task to listen for Ctrl+C and stop the system
+        actix_web::rt::spawn(async {
+            tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+            println!("Ctrl+C received. Shutting down server.");
+            actix_web::rt::System::current().stop();
+        });
+        
+        // Run the server; this will block until the system is stopped.
         app.run().await.expect("Failed to run server");
     });
 }
