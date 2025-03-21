@@ -121,12 +121,16 @@ async fn get_metadata(config: web::Data<Arc<Mutex<Config>>>) -> impl Responder {
 }
 
 pub fn start_server(config: Arc<Mutex<Config>>) {
-    println!("Starting API server on http://127.0.0.1:8080");
+    println!("Starting API server on http://0.0.0.0:8080");
     
     // Use actix_web to run the server
     let config_data = web::Data::new(config);
     
-    let server = HttpServer::new(move || {
+    // Create runtime for actix
+    let rt = actix_web::rt::Runtime::new().expect("Failed to create Actix runtime");
+    
+    // Use RuntimeService to handle the server
+    rt.block_on(async move {
         // Configure CORS to allow access from Flutter app
         let cors = Cors::default()
             .allow_any_origin()
@@ -134,19 +138,23 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
             .allow_any_header()
             .max_age(3600);
         
-        App::new()
-            .wrap(Logger::default())
-            .wrap(cors)
-            .app_data(config_data.clone())
-            .route("/health", web::get().to(health_check))
-            .route("/drives", web::get().to(get_drives))
-            .route("/stats", web::get().to(get_scan_stats))
-            .route("/scan", web::post().to(initiate_scan))
-            .route("/metadata", web::get().to(get_metadata))
-    })
-    .bind("127.0.0.1:8080")
-    .expect("Failed to bind to port 8080");
-    
-    // Run the server
-    let _ = server.run();
+        let app = HttpServer::new(move || {
+            App::new()
+                .wrap(Logger::default())
+                .wrap(cors.clone())
+                .app_data(config_data.clone())
+                .route("/health", web::get().to(health_check))
+                .route("/drives", web::get().to(get_drives))
+                .route("/stats", web::get().to(get_scan_stats))
+                .route("/scan", web::post().to(initiate_scan))
+                .route("/metadata", web::get().to(get_metadata))
+        })
+        .bind("0.0.0.0:8080")
+        .expect("Failed to bind to port 8080");
+        
+        println!("API server started successfully");
+        
+        // Run the server
+        app.run().await.expect("Failed to run server");
+    });
 }

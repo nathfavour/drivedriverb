@@ -38,24 +38,27 @@ fn run_backend() {
     let config = Config::load_or_create(&config_path);
     let config = Arc::new(Mutex::new(config));
     
-    // Write PID file so that the stop command can locate this process.
+    // Write PID file so that the stop command can locate this process
     let pid = std::process::id();
     let pid_path = get_config_dir().join("drivedriver.pid");
     let _ = fs::write(&pid_path, pid.to_string());
     
-    // Clone for API server
-    let api_config = config.clone();
-    let api_handle = std::thread::spawn(move || {
-        api::start_server(api_config);
+    // Start initial scan in a separate thread
+    let scan_config = config.clone();
+    let scan_handle = std::thread::spawn(move || {
+        scanner::start_initial_scan(scan_config);
     });
     
-    // Start initial scan using the original config clone.
-    scanner::start_initial_scan(config.clone());
+    // Start API server in the main thread
+    let api_config = config.clone();
+    api::start_server(api_config);
     
-    // Block on API server.
-    api_handle.join().unwrap();
+    // Wait for scan to complete
+    if let Err(e) = scan_handle.join() {
+        eprintln!("Error joining scan thread: {:?}", e);
+    }
     
-    // Clean up PID file on exit.
+    // Clean up PID file on exit
     let _ = fs::remove_file(pid_path);
 }
 
