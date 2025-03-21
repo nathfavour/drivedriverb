@@ -13,7 +13,33 @@ use std::process::Command;
 use crate::config::Config;
 use dirs;
 
+fn ensure_installed_in_home() {
+    let home = dirs::home_dir().expect("Could not find home directory");
+    let target_dir = home.join(".drivedriver");
+    let target_path = target_dir.join("drivedriverb");
+    // Create target directory if needed
+    if let Err(e) = fs::create_dir_all(&target_dir) {
+        eprintln!("Failed to create {}: {}", target_dir.display(), e);
+    }
+    if !target_path.exists() {
+        let current_exe = env::current_exe().expect("Failed to get current executable");
+        println!("Copying {} to {}", current_exe.display(), target_path.display());
+        fs::copy(&current_exe, &target_path)
+            .expect("Failed to copy executable to home directory");
+        #[cfg(unix)]
+        {
+            Command::new("chmod")
+                .args(&["+x", target_path.to_str().unwrap()])
+                .status()
+                .expect("Failed to set executable permissions");
+        }
+    }
+}
+
 fn main() {
+    // Ensure the executable is installed in home directory
+    ensure_installed_in_home();
+
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         usage();
