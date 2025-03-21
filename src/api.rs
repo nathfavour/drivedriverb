@@ -91,7 +91,7 @@ async fn initiate_scan(data: web::Json<ScanDriveRequest>, config: web::Data<Arc<
     }))
 }
 
-async fn get_metadata(config: web::Data<Arc<Mutex<Config>>>) -> impl Responder {
+async fn get_metadata(config: web::Data<Arc<Mutex<Config>>>) -> impl Responder {{
     // Load file metadata
     let config_dir = crate::get_config_dir();
     match storage::load_file_metadata(&config_dir) {
@@ -139,9 +139,15 @@ pub fn start_server(config: Arc<Mutex<Config>>) {
             .max_age(3600);
         
         let app = HttpServer::new(move || {
+            let cors = Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header()
+                .max_age(3600);
+                
             App::new()
                 .wrap(Logger::default())
-                .wrap(cors.clone())
+                .wrap(cors)
                 .app_data(config_data.clone())
                 .route("/health", web::get().to(health_check))
                 .route("/drives", web::get().to(get_drives))

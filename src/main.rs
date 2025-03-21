@@ -64,7 +64,7 @@ fn run_backend() {
 
 fn stop_backend() {
     let pid_path = get_config_dir().join("drivedriver.pid");
-    if (!pid_path.exists()) {
+    if !pid_path.exists() {
         println!("No running backend found.");
         return;
     }
