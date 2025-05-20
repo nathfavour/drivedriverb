@@ -81,7 +81,6 @@ pub fn scan_drive(drive_path: &Path, config: Arc<Mutex<Config>>) -> ScanResult {
 pub fn get_all_drives() -> Vec<PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        // Windows implementation
         let mut drives = Vec::new();
         for letter in b'A'..=b'Z' {
             let drive = PathBuf::from(format!("{}:\\", letter as char));
@@ -91,10 +90,8 @@ pub fn get_all_drives() -> Vec<PathBuf> {
         }
         drives
     }
-    
     #[cfg(target_os = "macos")]
     {
-        // macOS implementation
         let mut drives = Vec::new();
         if let Ok(entries) = std::fs::read_dir("/Volumes") {
             for entry in entries.filter_map(|e| e.ok()) {
@@ -103,24 +100,25 @@ pub fn get_all_drives() -> Vec<PathBuf> {
         }
         drives
     }
-    
     #[cfg(target_os = "linux")]
     {
-        // Linux implementation
         let mut drives = Vec::new();
         if let Ok(content) = std::fs::read_to_string("/proc/mounts") {
             for line in content.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
                     let mount_point = parts[1];
-                    if mount_point.starts_with("/media/") || mount_point.starts_with("/mnt/") {
+                    // Only include real block devices, skip pseudo filesystems
+                    if !mount_point.starts_with("/proc") && !mount_point.starts_with("/sys") && !mount_point.starts_with("/dev") && !mount_point.starts_with("/run") {
                         drives.push(PathBuf::from(mount_point));
                     }
                 }
             }
         }
-        // Add root filesystem
-        drives.push(PathBuf::from("/"));
+        // Add root filesystem if not already present
+        if !drives.iter().any(|p| p == "/") {
+            drives.push(PathBuf::from("/"));
+        }
         drives
     }
 }

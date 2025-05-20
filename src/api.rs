@@ -179,6 +179,50 @@ async fn get_system_status() -> impl Responder {
     HttpResponse::Ok().json(response)
 }
 
+// Add a new endpoint for live system/file status
+async fn get_live_status() -> impl Responder {
+    let uptime = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let memory_usage = get_memory_usage();
+    let cpu_usage = get_cpu_usage();
+    let scan_stats = get_scan_statistics();
+    let drives = scanner::get_all_drives();
+    let mut drive_details = Vec::new();
+    for drive in drives {
+        let stat = nix::sys::statvfs::statvfs(&drive).ok();
+        let (total, avail, used) = if let Some(stat) = stat {
+            let total = stat.blocks() * stat.block_size();
+            let avail = stat.blocks_available() * stat.block_size();
+            let used = total - avail;
+            (total, avail, used)
+        } else { (0, 0, 0) };
+        let fs_type = "unknown".to_string();
+        let is_removable = drive.to_string_lossy().starts_with("/media/") || drive.to_string_lossy().starts_with("/mnt/");
+        drive_details.push(serde_json::json!({
+            "mount_point": drive.to_string_lossy(),
+            "fs_type": fs_type,
+            "total_space": total,
+            "available_space": avail,
+            "used_space": used,
+            "is_removable": is_removable
+        }));
+    }
+    let response = serde_json::json!({
+        "status": "running",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime": uptime,
+        "memory_usage": memory_usage,
+        "cpu_usage": cpu_usage,
+        "scan_stats": scan_stats,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "process_id": std::process::id(),
+        "drives": drive_details
+    });
+    HttpResponse::Ok().json(response)
+}
+
 // Add config management endpoints
 async fn get_config() -> impl Responder {
     let config_dir = crate::get_config_dir();
@@ -582,6 +626,7 @@ pub fn start_server(config: Arc<Mutex<Config>>, port: u16, verbose: bool) {
                 .app_data(config_data.clone())
                 .route("/health", web::get().to(health_check))
                 .route("/status", web::get().to(get_system_status))
+                .route("/status/live", web::get().to(get_live_status))
                 .route("/drives", web::get().to(get_drives))
                 .route("/stats", web::get().to(get_scan_stats))
                 .route("/scan", web::post().to(initiate_scan))
