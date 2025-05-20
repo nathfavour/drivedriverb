@@ -86,7 +86,7 @@ async fn get_drives() -> impl Responder {
             is_removable,
         });
     }
-    HttpResponse::Ok().json(details)
+    HttpResponse::Ok().json(serde_json::json!({ "drives": details }))
 }
 
 async fn get_scan_stats() -> impl Responder {
