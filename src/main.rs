@@ -11,6 +11,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
+use std::net::TcpListener;
+use std::io::Write;
+use serde_json;
 use crate::config::Config;
 use dirs;
 
@@ -35,6 +38,36 @@ fn ensure_installed_in_home() {
                 .expect("Failed to set executable permissions");
         }
     }
+}
+
+fn find_available_port() -> u16 {
+    (10000..60000).find(|port| TcpListener::bind(("127.0.0.1", *port)).is_ok()).unwrap_or(8080)
+}
+
+fn write_config_json(port: u16, pid: u32) {
+    let home = dirs::home_dir().expect("Could not find home directory");
+    let config_dir = home.join(".drivedriverb");
+    let config_path = config_dir.join("config.json");
+    let config = serde_json::json!({
+        "port": port,
+        "pid": pid,
+        "status": "running"
+    });
+    let _ = fs::create_dir_all(&config_dir);
+    let _ = fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap());
+}
+
+fn read_config_json() -> Option<(u16, u32)> {
+    let home = dirs::home_dir().expect("Could not find home directory");
+    let config_path = home.join(".drivedriverb").join("config.json");
+    if let Ok(content) = fs::read_to_string(&config_path) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            let port = json.get("port").and_then(|v| v.as_u64()).unwrap_or(8080) as u16;
+            let pid = json.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            return Some((port, pid));
+        }
+    }
+    None
 }
 
 fn main() {
@@ -167,10 +200,15 @@ fn run_backend(port: u16, verbose: bool) {
     let config = Config::load_or_create(&config_path);
     let config = Arc::new(Mutex::new(config));
     
+    let port = if port == 0 {
+        find_available_port()
+    } else {
+        port
+    };
+
     // Write PID file so that the stop command can locate this process
     let pid = std::process::id();
-    let pid_path = get_config_dir().join("drivedriver.pid");
-    let _ = fs::write(&pid_path, format!("{}\n{}", pid, port)); // Store both PID and port
+    write_config_json(port, pid);
     
     // Start initial scan in a separate thread
     let scan_config = config.clone();
@@ -188,7 +226,7 @@ fn run_backend(port: u16, verbose: bool) {
     }
     
     // Clean up PID file on exit
-    let _ = fs::remove_file(pid_path);
+    let _ = fs::remove_file(get_config_dir().join("drivedriver.pid"));
 }
 
 fn stop_backend() {
@@ -230,6 +268,16 @@ fn stop_backend() {
             .expect("Failed to execute taskkill command");
         if status.success() {
             let _ = fs::remove_file(pid_path);
+        }
+    }
+
+    // Also update config.json status
+    let home = dirs::home_dir().expect("Could not find home directory");
+    let config_path = home.join(".drivedriverb").join("config.json");
+    if let Ok(mut config) = fs::read_to_string(&config_path) {
+        if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&config) {
+            json["status"] = serde_json::json!("stopped");
+            let _ = fs::write(&config_path, serde_json::to_string_pretty(&json).unwrap());
         }
     }
 }

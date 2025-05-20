@@ -39,6 +39,23 @@ struct ScanDriveRequest {
     path: String,
 }
 
+#[derive(Serialize)]
+struct DriveDetail {
+    mount_point: String,
+    fs_type: String,
+    total_space: u64,
+    available_space: u64,
+    used_space: u64,
+    is_removable: bool,
+}
+
+#[derive(Deserialize)]
+struct FileOpRequest {
+    path: String,
+    new_path: Option<String>,
+    content: Option<String>,
+}
+
 async fn health_check() -> impl Responder {
     let response = StatusResponse {
         status: "running".to_string(),
@@ -49,11 +66,27 @@ async fn health_check() -> impl Responder {
 
 async fn get_drives() -> impl Responder {
     let drives = scanner::get_all_drives();
-    let drive_paths: Vec<String> = drives.iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect();
-    
-    HttpResponse::Ok().json(DriveInfoResponse { drives: drive_paths })
+    let mut details = Vec::new();
+    for drive in drives {
+        let stat = nix::sys::statvfs::statvfs(&drive).ok();
+        let (total, avail, used) = if let Some(stat) = stat {
+            let total = stat.blocks() * stat.block_size();
+            let avail = stat.blocks_available() * stat.block_size();
+            let used = total - avail;
+            (total, avail, used)
+        } else { (0, 0, 0) };
+        let fs_type = "unknown".to_string(); // Optionally detect fs type
+        let is_removable = drive.to_string_lossy().starts_with("/media/") || drive.to_string_lossy().starts_with("/mnt/");
+        details.push(DriveDetail {
+            mount_point: drive.to_string_lossy().to_string(),
+            fs_type,
+            total_space: total,
+            available_space: avail,
+            used_space: used,
+            is_removable,
+        });
+    }
+    HttpResponse::Ok().json(details)
 }
 
 async fn get_scan_stats() -> impl Responder {
@@ -467,6 +500,55 @@ async fn get_file_details(path: web::Path<String>) -> impl Responder {
     }
 }
 
+async fn create_file(data: web::Json<FileOpRequest>) -> impl Responder {
+    let path = std::path::Path::new(&data.path);
+    if let Some(content) = &data.content {
+        if let Ok(mut file) = std::fs::File::create(path) {
+            use std::io::Write;
+            let _ = file.write_all(content.as_bytes());
+            return HttpResponse::Ok().json(serde_json::json!({"status": "created"}));
+        }
+    } else if let Ok(_) = std::fs::File::create(path) {
+        return HttpResponse::Ok().json(serde_json::json!({"status": "created"}));
+    }
+    HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create file"}))
+}
+
+async fn delete_file(data: web::Json<FileOpRequest>) -> impl Responder {
+    let path = std::path::Path::new(&data.path);
+    if std::fs::remove_file(path).is_ok() {
+        return HttpResponse::Ok().json(serde_json::json!({"status": "deleted"}));
+    }
+    HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to delete file"}))
+}
+
+async fn rename_file(data: web::Json<FileOpRequest>) -> impl Responder {
+    if let Some(new_path) = &data.new_path {
+        if std::fs::rename(&data.path, new_path).is_ok() {
+            return HttpResponse::Ok().json(serde_json::json!({"status": "renamed"}));
+        }
+    }
+    HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to rename file"}))
+}
+
+async fn copy_file(data: web::Json<FileOpRequest>) -> impl Responder {
+    if let Some(new_path) = &data.new_path {
+        if std::fs::copy(&data.path, new_path).is_ok() {
+            return HttpResponse::Ok().json(serde_json::json!({"status": "copied"}));
+        }
+    }
+    HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to copy file"}))
+}
+
+async fn move_file(data: web::Json<FileOpRequest>) -> impl Responder {
+    if let Some(new_path) = &data.new_path {
+        if std::fs::rename(&data.path, new_path).is_ok() {
+            return HttpResponse::Ok().json(serde_json::json!({"status": "moved"}));
+        }
+    }
+    HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to move file"}))
+}
+
 pub fn start_server(config: Arc<Mutex<Config>>, port: u16, verbose: bool) {
     if verbose {
         println!("Starting API server on http://0.0.0.0:{}", port);
@@ -508,6 +590,11 @@ pub fn start_server(config: Arc<Mutex<Config>>, port: u16, verbose: bool) {
                 .route("/files/{path:.*}", web::get().to(get_file_details))
                 .route("/config", web::get().to(get_config))
                 .route("/config", web::post().to(update_config))
+                .route("/file/create", web::post().to(create_file))
+                .route("/file/delete", web::post().to(delete_file))
+                .route("/file/rename", web::post().to(rename_file))
+                .route("/file/copy", web::post().to(copy_file))
+                .route("/file/move", web::post().to(move_file))
         })
         .bind(format!("0.0.0.0:{}", port))
         .expect(&format!("Failed to bind to port {}", port));
