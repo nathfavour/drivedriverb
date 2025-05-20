@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 use std::net::TcpListener;
-use std::io::Write;
+
 use serde_json;
 use crate::config::Config;
 use dirs;
@@ -274,7 +274,7 @@ fn stop_backend() {
     // Also update config.json status
     let home = dirs::home_dir().expect("Could not find home directory");
     let config_path = home.join(".drivedriverb").join("config.json");
-    if let Ok(mut config) = fs::read_to_string(&config_path) {
+    if let Ok(config) = fs::read_to_string(&config_path) {
         if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&config) {
             json["status"] = serde_json::json!("stopped");
             let _ = fs::write(&config_path, serde_json::to_string_pretty(&json).unwrap());

@@ -116,7 +116,7 @@ pub fn get_all_drives() -> Vec<PathBuf> {
             }
         }
         // Add root filesystem if not already present
-        if !drives.iter().any(|p| p == "/") {
+        if !drives.iter().any(|p| p == Path::new("/")) {
             drives.push(PathBuf::from("/"));
         }
         drives
